@@ -41,3 +41,6 @@ Alternatively, push this folder to a git repo and use **Extensions → Install e
   writing) `{ format, avatar_url }` POST body.
 - Large libraries (100+ characters) will take a little while since each character needs its own
   network round trip before zipping; a progress message shows in the loading overlay.
+
+  Built for [SillyTavern](https://github.com/SillyTavern/SillyTavern).
+
