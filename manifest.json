@@ -1,0 +1,10 @@
+{
+    "display_name": "Bulk Character Export",
+    "loading_order": 100,
+    "js": "index.js",
+    "css": "style.css",
+    "author": "you",
+    "version": "1.0.0",
+    "homePage": "",
+    "auto_update": false
+}

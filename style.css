@@ -1,0 +1,30 @@
+.bulk-character-export .bce-controls,
+.bulk-character-export .bce-format {
+    margin-bottom: 10px;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.bulk-character-export .bce-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+.bulk-character-export .bce-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.bulk-character-export .bce-row:last-child {
+    border-bottom: none;
+}
+
+.bulk-character-export-settings .flex-container {
+    gap: 8px;
+}
