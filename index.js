@@ -8,6 +8,26 @@ function safeFileName(name) {
     return cleaned.length ? cleaned : 'character';
 }
 
+async function fetchCharactersFromServer() {
+    // Bypasses the client-side cached `context.characters` array and asks the
+    // server directly, so newly imported/created characters show up without
+    // a full page reload.
+    const response = await fetch('/api/characters/all', {
+        method: 'POST',
+        headers: {
+            ...getRequestHeaders(),
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} fetching character list`);
+    }
+
+    return response.json();
+}
+
 async function exportCharacterBlob(avatarUrl, format) {
     const response = await fetch('/api/characters/export', {
         method: 'POST',
@@ -39,13 +59,17 @@ function downloadBlob(blob, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 15000);
 }
 
-function buildPanelHtml(characters) {
-    const rows = characters.map((c, index) => `
+function rowHtml(character, index) {
+    return `
         <label class="checkbox_label bce-row" for="bce_char_${index}">
             <input type="checkbox" id="bce_char_${index}" class="bce-char-checkbox" data-index="${index}" checked />
-            <span>${c.name}</span>
+            <span>${character.name}</span>
         </label>
-    `).join('');
+    `;
+}
+
+function buildPanelHtml(characters) {
+    const rows = characters.map((c, index) => rowHtml(c, index)).join('');
 
     return `
         <div class="bulk-character-export">
@@ -53,8 +77,9 @@ function buildPanelHtml(characters) {
             <div class="bce-controls flex-container">
                 <label class="checkbox_label">
                     <input type="checkbox" id="bce_select_all" checked />
-                    <span>Select all (${characters.length} characters)</span>
+                    <span id="bce_select_all_label">Select all (${characters.length} characters)</span>
                 </label>
+                <input id="bce_refresh" class="menu_button" type="button" value="Refresh list" title="Re-fetch the character list from the server" />
             </div>
             <div class="bce-format flex-container">
                 <label class="radio_label">
@@ -123,7 +148,12 @@ async function runExport(selectedCharacters, format) {
 }
 
 async function openExportPanel() {
-    const { characters, Popup, POPUP_TYPE, POPUP_RESULT } = SillyTavern.getContext();
+    const { Popup, POPUP_TYPE, POPUP_RESULT } = SillyTavern.getContext();
+
+    // Mutable reference: the "Refresh list" button inside the popup reassigns
+    // this, and the closures below (wireList/renderList/the final OK-click
+    // read) all read through this same variable.
+    let characters = SillyTavern.getContext().characters;
 
     if (!characters || characters.length === 0) {
         toastr.warning('No characters found.');
@@ -140,14 +170,49 @@ async function openExportPanel() {
         allowVerticalScrolling: true,
     });
 
-    // Wire up "select all" once the popup content is in the DOM.
+    function wireSelectAll(root) {
+        const selectAll = root.querySelector('#bce_select_all');
+        const checkboxes = root.querySelectorAll('.bce-char-checkbox');
+        selectAll.checked = true;
+        selectAll?.addEventListener('change', () => {
+            checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+        });
+    }
+
+    function renderList(root, chars) {
+        const listEl = root.querySelector('.bce-list');
+        const labelEl = root.querySelector('#bce_select_all_label');
+        if (listEl) {
+            listEl.innerHTML = chars.map((c, index) => rowHtml(c, index)).join('');
+        }
+        if (labelEl) {
+            labelEl.textContent = `Select all (${chars.length} characters)`;
+        }
+        wireSelectAll(root);
+    }
+
     setTimeout(() => {
         const root = popup.dlg;
         if (!root) return;
-        const selectAll = root.querySelector('#bce_select_all');
-        const checkboxes = root.querySelectorAll('.bce-char-checkbox');
-        selectAll?.addEventListener('change', () => {
-            checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+
+        wireSelectAll(root);
+
+        const refreshBtn = root.querySelector('#bce_refresh');
+        refreshBtn?.addEventListener('click', async () => {
+            const originalText = refreshBtn.value;
+            refreshBtn.disabled = true;
+            refreshBtn.value = 'Refreshing...';
+            try {
+                characters = await fetchCharactersFromServer();
+                renderList(root, characters);
+                toastr.success(`Found ${characters.length} character(s).`);
+            } catch (error) {
+                console.error(`[${MODULE_NAME}] Failed to refresh character list`, error);
+                toastr.error('Failed to refresh the character list. See console for details.');
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.value = originalText;
+            }
         });
     }, 0);
 
