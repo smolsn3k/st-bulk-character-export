@@ -5,13 +5,10 @@ them all at once as a single `.zip` containing the PNG card, the JSON, or both.
 
 ## Install
 
-1. Copy this `bulk-character-export` folder into your SillyTavern install at:
-   `data/<your-user-handle>/extensions/bulk-character-export`
-   (or, for a shared/all-users install: `public/scripts/extensions/third-party/bulk-character-export`)
-2. Restart SillyTavern (or just refresh the page).
-3. Open the **Extensions** panel → **Manage extensions**, and make sure "Bulk Character Export" is enabled.
-
-Alternatively, push this folder to a git repo and use **Extensions → Install extension** with the repo URL.
+1. In SillyTavern, open the **Extensions** panel (puzzle-piece icon) → **Install extension**.
+2. Paste this repo's URL: `https://github.com/smolsn3k/st-bulk-character-export`
+3. Confirm the install, then refresh the page if it doesn't reload automatically.
+4. Still in the Extensions panel, make sure "Bulk Character Export" is enabled.
 
 ## Use
 
@@ -20,9 +17,15 @@ Alternatively, push this folder to a git repo and use **Extensions → Install e
 3. Check the characters you want (or use "Select all"), pick PNG / JSON / Both, click **Export**.
 4. Your browser downloads one `character_cards_export_<timestamp>.zip` with all the selected files.
 
+If you've imported or created a character since you opened the popup and don't see it in the
+list, click **Refresh list** — it re-fetches the character list straight from the server instead
+of relying on whatever was cached when the popup opened.
+
 ## How it works
 
-- It reads the character list from `SillyTavern.getContext().characters`.
+- It reads the character list from `SillyTavern.getContext().characters` when the popup opens.
+- The **Refresh list** button instead calls `POST /api/characters/all` directly, bypassing the
+  client-side cache, and re-renders the checkbox list in place (selections are reset on refresh).
 - For each selected character it calls the built-in `POST /api/characters/export` endpoint
   (the same one the "Export character" button in the UI uses) once per requested format
   (`png` and/or `json`), using `avatar_url: character.avatar`.
@@ -34,13 +37,22 @@ Alternatively, push this folder to a git repo and use **Extensions → Install e
 
 - This only exports characters that exist in your current SillyTavern user profile — it can't
   reach characters belonging to other users on a multi-user setup.
-- If exports fail for everyone, open the browser dev tools Network tab while exporting one
-  character manually from the UI and compare the request body/headers against what
-  `/api/characters/export` expects on your installed version — SillyTavern's internal API has
-  changed shape before across major versions, and this extension mirrors the current (as of
-  writing) `{ format, avatar_url }` POST body.
+- If exports (or the refresh) fail for everyone, open the browser dev tools Network tab while
+  doing the same action manually from the normal UI and compare the request body/headers
+  against what this extension sends — SillyTavern's internal API has changed shape before across
+  major versions, and this extension mirrors the current (as of writing) shapes:
+  `/api/characters/export` → `{ format, avatar_url }`, `/api/characters/all` → `{}`.
 - Large libraries (100+ characters) will take a little while since each character needs its own
   network round trip before zipping; a progress message shows in the loading overlay.
-
-  Built for [SillyTavern](https://github.com/SillyTavern/SillyTavern).
-
+- If the character count shown in the popup (or after **Refresh list**) is lower than what your
+  character panel's pagination shows, that's not something this extension can fix — it only
+  displays whatever `/api/characters/all` returns. A mismatch usually means either (a) the
+  sidebar count includes group chats, which aren't individual characters and aren't returned by
+  that endpoint, or (b) some character files failed to parse server-side (check the SillyTavern
+  server console/log for warnings) and were silently excluded from the API response. You can
+  confirm the server's real count independent of this extension by running the following in your
+  browser console while on the SillyTavern page, then comparing it to your file count on disk:
+  ```js
+  fetch('/api/characters/all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json()).then(data => console.log('Server returned:', data.length));
+  ```
